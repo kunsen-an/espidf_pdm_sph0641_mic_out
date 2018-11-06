@@ -8,7 +8,7 @@ Please refer to https://kunsen.net/ for details.
 ---
 
 * This is an example of:
-    * Recording sound from I2S Microphone (SPM0405HD4H)
+    * Recording sound from PDM Microphone (SPM0405HD4H)
     * Replay the recorded sound via PDM or DAC
     * Play an audio file in flash
     
