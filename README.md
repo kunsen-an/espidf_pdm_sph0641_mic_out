@@ -1,4 +1,4 @@
-# ESP32 PDM Microphone (SPM0405HD4H) and built-in DAC/PDM output Example
+# ESP32 PDM Microphone (SPH0641LU4H-1) and built-in DAC/PDM output Example
 
 This is based on ESP-IDF i2s_adc_dac Example.
 Adapted to PlatformIO IDE for VSCode
@@ -8,8 +8,9 @@ Please refer to https://kunsen.net/ for details.
 ---
 
 * This is an example of:
-    * Recording sound from PDM Microphone (SPM0405HD4H)
+    * Recording sound from PDM Microphone with ultrasonic support (SPH0641LU4H-1)
     * Replay the recorded sound via PDM or DAC
+	* Sampling frequency is 48kHz or 96kHz
     * Play an audio file in flash
     
 ---
@@ -22,7 +23,7 @@ Please refer to https://kunsen.net/ for details.
     1. Erase flash
     2. Record audio from PDM microphone and save in flash
     3. Read flash and replay the sound via PDM or DAC
-    4. Play an example audio file(file format: 8bit/8khz/single channel)
+    4. Play an example audio file(file format: 8bit/single channel)
     5. Loop back to step 3
   
 ---
@@ -31,15 +32,6 @@ Please refer to https://kunsen.net/ for details.
 	Please refer to https://kunsen.net
 
 
----
-
-* How to generate audio files:
-	
-	* tools/generate_audio_file.py is an example of generate audio table from .wav files.
-	* In this example, the wav file must be in 16k/16bit mono format.
-	* generate_audio_file.py will bundle the wav files into a single table named audio_example_file.h
-	* Since the ADC can only play 8-bit data, the script will scale each 16-bit value to a 8-bit value.
-	* Since the ADC can only output positive value, the script will turn a signed value into an unsigned value.
 	
 ---
 
