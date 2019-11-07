@@ -12,7 +12,18 @@
 #include <driver/dac.h>
 #include <driver/rtc_io.h>
 
+#define FREQ_KILO    96
+
+#if FREQ_KILO == (192)
+#include "v192k.h"
+#elif FREQ_KILO == (96)
+#include "v96k.h"
+#elif FREQ_KILO == (48) 
+#include "v48k.h"
+#else   /* 16 */
 #include "variatio.h"
+#endif
+
 
 /*---------------------------------------------------------------
                             EXAMPLE CONFIG
@@ -24,7 +35,7 @@
 #define PDM_OUT 1         /* PDM output */
 #define DAC_OUT (!PDM_OUT) /* DAC output */
 
-#define PCM8_MONO_DATA 1                    /* Sound file is unsigned 8bit mono 16kHz */
+#define PCM8_MONO_DATA 0                    /* Sound file is unsigned 8bit mono 16kHz */
 #define PCM16_STEREO_DATA (!PCM8_MONO_DATA) /* Sound file is signed 16bit stereo 16kHz */
 #define PCM8_OFFSET 0x8000                  /* unsigned pcm data to signed */
 #define PCM16_OFFSET 0                      /* signed pcm data to signed */
@@ -67,10 +78,10 @@ static const char *TAG = "pdm_mic/out";
 #define EXAMPLE_PDM_NUM_RX (0)     // 0 for PDM
 #define EXAMPLE_I2S_PDM_NUM_TX (0) // 0 for PDM/DAC
 //i2s sample rate
-#define EXAMPLE_I2S_SAMPLE_RATE (16 * 1000) // 16kHz
+#define EXAMPLE_I2S_SAMPLE_RATE (FREQ_KILO * 1000)
 //PDM sample rate
-//#define EXAMPLE_PDM_SAMPLE_RATE (48*1000)     // 48kHz
-#define EXAMPLE_PDM_SAMPLE_RATE (16 * 1000) // 16kHz
+#define EXAMPLE_PDM_SAMPLE_RATE (FREQ_KILO * 1000) 
+
 //PDM RX data bits
 #define EXAMPLE_PDM_SAMPLE_BITS_RX (16) // PDM 16bit input
 //PDM TX data bits
@@ -123,8 +134,8 @@ static const char *TAG = "pdm_mic/out";
 //I2S rx channel number
 #define EXAMPLE_PDM_CHANNEL_NUM_RX ((EXAMPLE_CHANNEL_FORMAT_PDM_RX < I2S_CHANNEL_FMT_ONLY_RIGHT) ? (2) : (1))
 
-//flash record size, for recording 5 seconds' data
-#define RECORDING_PERIOD 5
+//flash record size, for recording 2 seconds' data
+#define RECORDING_PERIOD 2
 #define FLASH_RECORD_SIZE (EXAMPLE_PDM_CHANNEL_NUM_RX * EXAMPLE_PDM_SAMPLE_RATE * EXAMPLE_PDM_SAMPLE_BITS_RX / 8 * RECORDING_PERIOD)
 #define FLASH_ERASE_SIZE (FLASH_RECORD_SIZE % FLASH_SECTOR_SIZE == 0) ? FLASH_RECORD_SIZE : FLASH_RECORD_SIZE + (FLASH_SECTOR_SIZE - FLASH_RECORD_SIZE % FLASH_SECTOR_SIZE)
 //sector size of flash
@@ -132,6 +143,12 @@ static const char *TAG = "pdm_mic/out";
 //flash read / write address
 #define FLASH_ADDR (0x200000)
 
+#define MIC_DMA_BUF_COUNT           4
+#define MIC_DMA_BUF_LEN             1024
+#define PDM_OUT_DMA_BUF_COUNT       12
+#define PDM_OUT_DMA_BUF_LEN         1024
+#define I2S_DAC_OUT_DMA_BUF_COUNT   2
+#define I2S_DAC_OUT_DMA_BUF_LEN     1024
 /**
  * @brief PDM microphone input mode init.
  */
@@ -143,8 +160,8 @@ void example_pdm_mic_init()
         .bits_per_sample = EXAMPLE_PDM_SAMPLE_BITS_RX, // 16bit
         .channel_format = EXAMPLE_CHANNEL_FORMAT_PDM_RX,
         .communication_format = I2S_COMM_FORMAT_I2S_MSB, //pcm data format
-        .dma_buf_count = 4,                              // number of buffers, 128 max.
-        .dma_buf_len = 1024,                             // size of each buffer
+        .dma_buf_count = MIC_DMA_BUF_COUNT,              // number of buffers, 128 max.
+        .dma_buf_len = MIC_DMA_BUF_LEN,                  // size of each buffer
         .use_apll = 0,
         .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1 // Interrupt level 1
     };
@@ -177,8 +194,8 @@ void example_pdm_out_init()
         .bits_per_sample = EXAMPLE_PDM_SAMPLE_BITS_TX, // 16bit
         .channel_format = EXAMPLE_CHANNEL_FORMAT_PDM_TX,
         .communication_format = I2S_COMM_FORMAT_I2S_MSB, //pcm data format
-        .dma_buf_count = 12,                             // number of buffers, 128 max.
-        .dma_buf_len = 1024,                             // size of each buffer
+        .dma_buf_count = PDM_OUT_DMA_BUF_COUNT,                             // number of buffers, 128 max.
+        .dma_buf_len = PDM_OUT_DMA_BUF_LEN,                             // size of each buffer
         .use_apll = 0,
         .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1 // Interrupt level 1
     };
@@ -211,8 +228,8 @@ void example_i2s_dac_out_init()
         .communication_format = I2S_COMM_FORMAT_I2S_MSB,
         .channel_format = EXAMPLE_CHANNEL_FORMAT_I2S_TX,
         .intr_alloc_flags = 0,
-        .dma_buf_count = 2,
-        .dma_buf_len = 1024,
+        .dma_buf_count = I2S_DAC_OUT_DMA_BUF_COUNT,
+        .dma_buf_len = I2S_DAC_OUT_DMA_BUF_LEN,
 
         .use_apll = 0,
         .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1 // Interrupt level 1
@@ -389,6 +406,21 @@ int_least64_t example_pdm_mic_data_scale(uint8_t *d_buff, uint8_t *s_buff, uint3
     return j;
 }
 
+// flash out PDM DMA buffer
+void flash_out_pdm_dma_buffer()
+{
+        uint8_t *i2s_write_buff = (uint8_t *)calloc(EXAMPLE_I2S_WRITE_BUF_LEN, sizeof(uint8_t));
+        uint8_t *empty_buff = (uint8_t *)calloc(EXAMPLE_MAX_WRITE_DATA, sizeof(uint8_t));
+        size_t bytes_written;
+
+        int i2s_wr_len = example_i2s_data_scale(i2s_write_buff, empty_buff, EXAMPLE_MAX_WRITE_DATA);
+        for ( int i = 0 ; i < PDM_OUT_DMA_BUF_COUNT ; i++ ) {
+            i2s_write(EXAMPLE_I2S_PDM_NUM_TX, i2s_write_buff, i2s_wr_len, &bytes_written, portMAX_DELAY);
+        }
+        free(empty_buff);
+        free(i2s_write_buff);
+}
+
 /**
  * @brief PDM Mic to PDM/DAC example
  *        1. Erase flash
@@ -473,6 +505,9 @@ void example_pdm_out(void *arg)
         free(i2s_write_data);
         flash_read_buff = NULL;
         i2s_write_data = NULL;
+
+        // flash out DMA buffer to stop sounds
+        flash_out_pdm_dma_buffer();
 #endif
         vTaskDelay(1000 / portTICK_PERIOD_MS); // pause
 #if REPLAY_FROM_FILE_EN
@@ -485,8 +520,21 @@ void example_pdm_out(void *arg)
         int tot_size = sizeof(audio_table);
         uint8_t *start = (uint8_t *)audio_table;
 #elif PCM16_STEREO_DATA
+#if FREQ_KILO == (16)
         int tot_size = sizeof(Kimiko_Ishizaka___02___Variatio_1_a_1_Clav_03_18_raw);
         uint8_t *start = (uint8_t *)Kimiko_Ishizaka___02___Variatio_1_a_1_Clav_03_18_raw;
+#elif FREQ_KILO == (48)
+        int tot_size = sizeof(Kimiko_Ishizaka___02___Variatio_1_a_1_Clav_0334_834_48k_raw);
+        uint8_t *start = (uint8_t *)Kimiko_Ishizaka___02___Variatio_1_a_1_Clav_0334_834_48k_raw;
+#elif FREQ_KILO == (96)
+        int tot_size = sizeof(Kimiko_Ishizaka___02___Variatio_1_a_1_Clav_0334_834_96k_raw);
+        uint8_t *start = (uint8_t *)Kimiko_Ishizaka___02___Variatio_1_a_1_Clav_0334_834_96k_raw;
+#elif FREQ_KILO == (192)
+        int tot_size = sizeof(Kimiko_Ishizaka___02___Variatio_1_a_1_Clav_0334_834_192k_raw);
+        uint8_t *start = (uint8_t *)Kimiko_Ishizaka___02___Variatio_1_a_1_Clav_0334_834_192k_raw;
+#else
+#error "NO DATA for EXAMPLE_PDM_SAMPLE_RATE"
+#endif
 #else
 #error "NO DATA"
 #endif
@@ -500,11 +548,16 @@ void example_pdm_out(void *arg)
             offset += play_len;
             example_disp_buf((uint8_t *)i2s_write_buff, 16);
         }
+
         free(i2s_write_buff);
         i2s_write_buff = NULL;
+
+        // flash out DMA buffer to stop sounds
+        flash_out_pdm_dma_buffer();
+
         printf("Playing done.\n");
 
-        vTaskDelay(100 / portTICK_PERIOD_MS);
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
 #endif
     }
     example_output_uninit();

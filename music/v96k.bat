@@ -1,0 +1,1 @@
+bin2c -d v96k.h -o v96k.c Kimiko_Ishizaka_-_02_-_Variatio_1_a_1_Clav_0334-834.96k.raw

@@ -1,0 +1,1 @@
+bin2c -d v48k.h -o v48k.c Kimiko_Ishizaka_-_02_-_Variatio_1_a_1_Clav_48k.raw
